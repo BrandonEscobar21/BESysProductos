@@ -1,10 +1,12 @@
 ﻿using BE.SysProductos.BL;
-using BE.SysProductos.DAL;
 using BE.SysProductos.EN;
+using BE.SysProductos.EN.Filtros;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using static BE.SysProductos.EN.Compra;
+using OfficeOpenXml;
+using Rotativa.AspNetCore;
+using static BE.SysProductos.EN.Filtros.VentaFiltros;
 using static BE.SysProductos.EN.Venta;
 
 namespace BE.SysProductos.WebApp.Controllers
@@ -123,6 +125,85 @@ namespace BE.SysProductos.WebApp.Controllers
             await ventaBL.AnularAsync(id);
 
             return RedirectToAction("Index");
+        }
+
+        public async Task<IActionResult> ReporteVentasExcel(List<Venta> ventas)
+        {
+            using (var package = new ExcelPackage())
+            {
+                var hojaExcel = package.Workbook.Worksheets.Add("Reporte Ventas");
+
+                //Encabezado
+                hojaExcel.Cells["A1"].Value = "Fecha de Venta";
+                hojaExcel.Cells["B1"].Value = "Cliente";
+                hojaExcel.Cells["C1"].Value = "Producto";
+                hojaExcel.Cells["D1"].Value = "Cantidad";
+                hojaExcel.Cells["E1"].Value = "Subtotal";
+                hojaExcel.Cells["F1"].Value = "Total de la Venta";
+
+                int row = 2;
+                int totalCantidad = 0;
+                decimal totalSubtotal = 0;
+                decimal totalGeneral = 0;
+
+                foreach (var venta in ventas)
+                {
+                    foreach (var detalle in venta.DetalleVentas)
+                    {
+                        hojaExcel.Cells[row, 1].Value = venta.FechaVenta.ToString("yyyy-MM-dd");
+                        hojaExcel.Cells[row, 2].Value = venta.Cliente?.Nombre ?? "N/A";
+                        hojaExcel.Cells[row, 3].Value = detalle.Producto?.Nombre ?? "N/A";
+                        hojaExcel.Cells[row, 4].Value = detalle.Cantidad;
+                        hojaExcel.Cells[row, 5].Value = detalle.SubTotal;
+                        hojaExcel.Cells[row, 6].Value = venta.Total;
+
+                        // Acumular totales
+                        totalCantidad += detalle.Cantidad;
+                        totalSubtotal += detalle.SubTotal;
+                        totalGeneral += venta.Total;
+
+                        row++;
+                    }
+                }
+                //Fila de totales
+                hojaExcel.Cells[row, 3].Value = "Totales:";
+                hojaExcel.Cells[row, 4].Value = totalCantidad;
+                hojaExcel.Cells[row, 5].Value = totalSubtotal;
+                hojaExcel.Cells[row, 6].Value = totalGeneral;
+
+                // Negrita para la fila de totales
+                hojaExcel.Cells[row, 3, row, 6].Style.Font.Bold = true;
+
+                hojaExcel.Cells["A:F"].AutoFitColumns();
+
+                var stream = new MemoryStream();
+                package.SaveAs(stream);
+                stream.Position = 0;
+                return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "ReporteVentasExcel.xlsx");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> DescargarReporte(VentaFiltros filtro)
+        {
+            var ventas = await ventaBL.ObtenerReporteVentasAsync(filtro);
+
+            if (filtro.TipoReporte == (byte)EnumTipoReporte.PDF)
+            {
+                return new ViewAsPdf("rpVentas", ventas);
+            }
+            else if (filtro.TipoReporte == (byte)EnumTipoReporte.Excel)
+            {
+                return await ReporteVentasExcel(ventas);
+            }
+
+            return BadRequest("Formato no válido");
+        }
+
+        [HttpGet]
+        public IActionResult ReporteVentas()
+        {
+            return View();
         }
     }
 }

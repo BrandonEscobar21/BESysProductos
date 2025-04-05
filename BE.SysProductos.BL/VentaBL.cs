@@ -1,5 +1,6 @@
 ﻿using BE.SysProductos.DAL;
 using BE.SysProductos.EN;
+using BE.SysProductos.EN.Filtros;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,6 +36,10 @@ namespace BE.SysProductos.BL
         public async Task<List<Venta>> ObtenerPorEstadoAsync(byte estado)
         {
             return await ventaDAL.ObtenerPorEstadoAsync(estado);
+        }
+        public async Task<List<Venta>> ObtenerReporteVentasAsync(VentaFiltros filtro)
+        {
+            return await ventaDAL.ObtenerReporteVentasAsync(filtro);
         }
     }
 }

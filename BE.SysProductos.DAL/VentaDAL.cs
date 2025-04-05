@@ -1,4 +1,5 @@
 ﻿using BE.SysProductos.EN;
+using BE.SysProductos.EN.Filtros;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -97,6 +98,29 @@ namespace BE.SysProductos.DAL
             var ventas = await ventasQuery.ToListAsync();
 
             return ventas ?? new List<Venta>();
+        }
+
+        public async Task<List<Venta>> ObtenerReporteVentasAsync(VentaFiltros filtro)
+        {
+            var ventasQuery = dbContext.Ventas
+                .Include(c => c.DetalleVentas)
+                    .ThenInclude(dc => dc.Producto)
+                .Include(c => c.Cliente)
+                .AsQueryable();
+
+            if (filtro.FechaInicio.HasValue)
+            {
+                DateTime fechaInicio = filtro.FechaInicio.Value.Date; // Eliminar la hora, dejar solo la fecha
+                ventasQuery = ventasQuery.Where(c => c.FechaVenta >= fechaInicio);
+            }
+
+            if (filtro.FechaFin.HasValue)
+            {
+                DateTime fechaFin = filtro.FechaFin.Value.Date.AddDays(1).AddSeconds(-1); // Incluir hasta el final del dia
+                ventasQuery = ventasQuery.Where(c => c.FechaVenta <= fechaFin);
+            }
+
+            return await ventasQuery.ToListAsync();
         }
     }
 }
